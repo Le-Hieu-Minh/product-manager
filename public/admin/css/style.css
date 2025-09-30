@@ -108,3 +108,62 @@ header .inner-logo a {
 }
 
 /* End Image Preview */
+
+/* login */
+/* Định dạng toàn bộ form đăng nhập */
+form.text-center {
+  background-color: #ffffff;
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Tiêu đề */
+form.text-center h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Nhóm form */
+.form-group {
+  margin-bottom: 20px;
+}
+
+/* Label */
+label {
+  font-weight: 500;
+  color: #555;
+}
+
+/* Input */
+input.form-control {
+  height: 45px;
+  font-size: 16px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  transition: border-color 0.3s;
+}
+
+input.form-control:focus {
+  border-color: #007bff;
+  box-shadow: none;
+}
+
+/* Nút đăng nhập */
+.btn-primary.btn-block {
+  font-size: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  background-color: #007bff;
+  border: none;
+  transition: background-color 0.3s;
+}
+
+.btn-primary.btn-block:hover {
+  background-color: #0056b3;
+}
+
+
+/* end login */

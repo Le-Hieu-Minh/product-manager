@@ -1,9 +1,11 @@
 const express = require('express');
+const path = require('path');
 const methodOverride = require('method-override')
 const bodyParser = require('body-parser')
 const flash = require('express-flash');
 const cookieParser = require('cookie-parser')
 const session = require('express-session')
+const moment = require('moment');
 require('dotenv').config();
 
 const database = require('./config/database')
@@ -29,12 +31,16 @@ app.use(cookieParser('QWERTYUIOPASDFGHJ'));
 app.use(session({ cookie: { maxAge: 60000 } }));
 app.use(flash());
 
+//tiniMCE
+app.use('/tinymce', express.static(path.join(__dirname, 'node_modules', 'tinymce')));
+
 app.set('views', `${__dirname}/Views`)
 app.set('view engine', 'pug')
 
 
 //App Local Variables
 app.locals.prefixAdmin = systemConfig.prefexAdmin;
+app.locals.moment = moment;
 
 app.use(express.static(`${__dirname}/public`))
 

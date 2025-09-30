@@ -1,4 +1,6 @@
 const Product = require('../../models/product.model');
+const ProductCategory = require('../../models//product-category.model');
+const productHelper = require('../../helpers/product')
 // [GET] /products
 module.exports.index = async (req, res) => {
   const products = await Product.find({
@@ -6,10 +8,7 @@ module.exports.index = async (req, res) => {
     deleted: false
   }).sort({ position: 'desc' })
 
-  const newProduct = products.map(item => {
-    item.priceNew = (item.price * (100 - item.discountPercentage) / 100).toFixed(0)
-    return item;
-  });
+  const newProduct = productHelper.priceNewProduct(products)
 
   res.render('client/pages/product/index', {
     pageTitle: 'Trang danh sach san pham',
@@ -32,7 +31,6 @@ module.exports.detail = async (req, res) => {
     }
     const product = await Product.findOne(find);
 
-    console.log(product);
 
     res.render('client/pages/product/detail', {
       pageTitle: 'Trang chi tiet san pham',
@@ -45,3 +43,24 @@ module.exports.detail = async (req, res) => {
 
 
 }
+// [GET] /products/:slugCategory
+module.exports.category = async (req, res) => {
+  console.log(req.params.slugCategory);
+  const category = await ProductCategory.findOne({
+    slug: req.params.slugCategory,
+    deleted: false
+  })
+  const product = await Product.find({
+    product_category_id: category.id,
+    deleted: false
+  })
+  const newProduct = productHelper.priceNewProduct(product);
+
+  res.render('client/pages/product/index', {
+    pageTitle: category.title,
+    products: newProduct
+
+  })
+
+}
+

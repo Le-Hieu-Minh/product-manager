@@ -1,8 +1,12 @@
 const Product = require('../../models/product.model');
+const ProductCategory = require('../../models/product-category.model')
+const Account = require('../../models/account.model')
+
 const filterStatusHelper = require('../../helpers/filterStatus')
 const searchHelper = require('../../helpers/search')
 const paginationHelper = require('../../helpers/pagination');
 const systemConfig = require('../../config/system');
+const createTreeHelper = require('../../helpers/createTree')
 
 
 // [GET] /admin/products
@@ -35,7 +39,41 @@ module.exports.products = async (req, res) => {
     coutProduct
   )
 
-  const products = await Product.find(find).sort({ position: 'descending' }).limit(pagination.limitItem).skip(pagination.skip);
+  // sort
+  let sort = {}
+
+  if (req.query.sortKey && req.query.sortValue) {
+    sort[req.query.sortKey] = req.query.sortValue;
+  } else {
+    sort.position = 'desc';
+  }
+
+  // end sort
+
+
+
+  const products = await Product.find(find).sort(sort).limit(pagination.limitItem).skip(pagination.skip);
+
+  for (const product of products) {
+    //lay ra thonf tin nguoi tao
+    const user = await Account.findOne({ _id: product.createBy.account_id })
+    if (user) {
+      product.accountFullName = user.fullName;
+    }
+
+
+    //lay ra thong tin nguoi cap nhap gan nhat
+    const updatedBy = product.updatedBy.slice(-1)[0];
+    if (updatedBy) {
+      const userUpdated = await Account.findOne({
+        _id: updatedBy.account_id
+      });
+      updatedBy.accountFullName = userUpdated.fullName;
+    }
+
+  }
+
+
 
   res.render('admin/pages/products/index', {
     pageTitle: 'Trang danh sach san pham',
@@ -50,7 +88,15 @@ module.exports.products = async (req, res) => {
 module.exports.changeStatus = async (req, res) => {
   const status = req.params.status;
   const id = req.params.id;
-  await Product.updateOne({ _id: id }, { status: status })
+
+  const updatedBy = {
+    account_id: res.locals.user.id,
+    updatedAt: new Date()
+  }
+  await Product.updateOne({ _id: id }, {
+    status: status,
+    $push: { updatedBy: updatedBy }
+  })
   req.flash('success', "Cap nhap trang thai thanh cong")
   res.redirect(req.get('Referer') || '/admin/products')
 }
@@ -59,20 +105,36 @@ module.exports.changeStatus = async (req, res) => {
 module.exports.changeMulti = async (req, res) => {
   const type = req.body.type;
   const ids = req.body.ids.split(",");
-
+  const updatedBy = {
+    account_id: res.locals.user.id,
+    updatedAt: new Date()
+  }
 
   switch (type) {
     case 'active':
-      await Product.updateMany({ _id: { $in: ids } }, { status: 'active' })
+      await Product.updateMany({ _id: { $in: ids } }, {
+        status: 'active',
+        $push: { updatedBy: updatedBy }
+      })
       req.flash('success', `Cap nhap thanh cong trang thai ${ids.length} san pham thanh cong`)
       break;
     case 'inactive':
-      await Product.updateMany({ _id: { $in: ids } }, { status: 'inactive' })
+      await Product.updateMany({ _id: { $in: ids } }, {
+        status: 'inactive',
+        $push: { updatedBy: updatedBy }
+      })
       req.flash('success', `Cap nhap thanh cong trang thai ${ids.length} san pham thanh cong`)
 
       break;
     case 'delete-all':
-      await Product.updateMany({ _id: { $in: ids } }, { deleted: true, deleteAt: new Date() })
+      await Product.updateMany({ _id: { $in: ids } }, {
+        deleted: true,
+        // deleteAt: new Date() 
+        deletedBy: {
+          account_id: res.locals.user.id,
+          deletedAt: new Date()
+        }
+      })
       req.flash('success', `Xoa ${ids.length} san pham thanh cong`)
       break;
     case 'change-position':
@@ -80,7 +142,8 @@ module.exports.changeMulti = async (req, res) => {
         let [id, position] = item.split('-')
         position = parseInt(position)
         await Product.updateOne({ _id: id }, {
-          position: parseInt(position)
+          position: parseInt(position),
+          $push: { updatedBy: updatedBy }
         })
         req.flash('success', `thay doi vi tri san pham thanh cong`)
       }
@@ -94,6 +157,7 @@ module.exports.changeMulti = async (req, res) => {
 
 
 }
+
 // [DELETE] /admin/products/delete
 module.exports.deleteItem = async (req, res) => {
 
@@ -103,7 +167,11 @@ module.exports.deleteItem = async (req, res) => {
 
   await Product.updateOne({ _id: id }, {
     deleted: true,
-    deleteAt: new Date()
+    // deleted: new Date()
+    deletedBy: {
+      account_id: res.locals.user.id,
+      deletedAt: new Date()
+    }
   })
 
 
@@ -114,20 +182,27 @@ module.exports.deleteItem = async (req, res) => {
 // [GET] /admin/products/create
 module.exports.create = async (req, res) => {
 
+  let find = {
+    deleted: false
+  }
+
+
+  const category = (await ProductCategory.find(find));
+
+  const newCategory = createTreeHelper.tree(category);
+
+
   res.render('admin/pages/products/create', {
     pageTitle: 'Trang them moi san pham',
-
+    category: newCategory
   })
 
 }
+
 // [POST] /admin/products/create
 module.exports.createPost = async (req, res) => {
 
-  if (!req.body.title) {
-    req.flash('error', "Vui long nhap tieu de");
-    res.redirect(req.get('Referer'))
-    return;
-  }
+
 
   req.body.price = parseInt(req.body.price);
   req.body.discountPercentage = parseInt(req.body.discountPercentage);
@@ -142,9 +217,8 @@ module.exports.createPost = async (req, res) => {
   } else {
     req.body.position = parseInt(req.body.position)
   }
-
-  if (req.file) {
-    req.body.thumbnail = `/uploads/${req.file.filename}`;
+  req.body.createBy = {
+    account_id: res.locals.user.id
   }
 
   const product = new Product(req.body);
@@ -163,9 +237,15 @@ module.exports.edit = async (req, res) => {
     const product = await Product.findOne(find);
     console.log(product);
 
+
+    const category = (await ProductCategory.find({ deleted: false }));
+
+    const newCategory = createTreeHelper.tree(category);
+
     res.render('admin/pages/products/edit', {
       pageTitle: 'Trang sua san pham',
-      product: product
+      product: product,
+      category: newCategory
     })
 
 
@@ -188,13 +268,18 @@ module.exports.editPatch = async (req, res) => {
   req.body.position = parseInt(req.body.position);
 
 
-  if (req.file) {
-    req.body.thumbnail = `/uploads/${req.file.filename}`;
-  }
-
-
   try {
-    await Product.updateOne({ _id: req.params.id }, req.body);
+
+    const updatedBy = {
+      account_id: res.locals.user.id,
+      updatedAt: new Date()
+    }
+
+
+    await Product.updateOne({ _id: req.params.id }, {
+      ...req.body,
+      $push: { updatedBy: updatedBy }
+    });
     req.flash('success', `Cap nhap thanh cong`)
 
   } catch (error) {
